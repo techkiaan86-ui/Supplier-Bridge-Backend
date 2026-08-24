@@ -134,7 +134,8 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       return next(new AppError('User account is deactivated', 403));
     }
 
-    const accessToken = generateAccessToken(user.id, user.role.name);
+    const roleName = user.role?.name || 'admin';
+    const accessToken = generateAccessToken(user.id, roleName);
     const refreshToken = generateRefreshToken(user.id);
 
     // Save refresh token

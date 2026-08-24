@@ -27,7 +27,7 @@ export const globalErrorHandler = (err: any, req: Request, res: Response, next: 
       console.error('ERROR 💥', err);
       res.status(500).json({
         status: 'error',
-        message: 'Something went very wrong!',
+        message: err.message || 'Something went very wrong!',
       });
     }
   }
