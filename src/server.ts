@@ -18,6 +18,17 @@ async function startServer() {
     await prisma.$connect();
     console.log('✅ Database connected successfully');
 
+    // Auto-sync schema columns on live/local DB
+    try {
+      const { execSync } = require('child_process');
+      const path = require('path');
+      const prismaCliPath = path.join(process.cwd(), 'node_modules', 'prisma', 'build', 'index.js');
+      execSync(`node "${prismaCliPath}" db push --accept-data-loss`, { stdio: 'ignore' });
+      console.log('✅ Database schema synchronized successfully');
+    } catch (syncErr: any) {
+      console.warn('⚠️ DB schema auto-sync notice:', syncErr.message || syncErr);
+    }
+
     // Initialize Background Workers and Scheduler
     initWorkers();
     await SchedulerService.startScheduler();

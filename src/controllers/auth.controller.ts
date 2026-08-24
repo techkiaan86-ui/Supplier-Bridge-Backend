@@ -136,6 +136,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
 
     const roleName = user.role?.name || 'admin';
     const accessToken = generateAccessToken(user.id, roleName);
+    // const accessToken = generateAccessToken(user.id, user.role.name);
     const refreshToken = generateRefreshToken(user.id);
 
     // Save refresh token
