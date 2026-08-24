@@ -4,7 +4,7 @@
   "description": "SupplyBridge Backend API",
   "main": "dist/server.js",
   "scripts": {
-    "start": "npx prisma db push --accept-data-loss && node dist/server.js",
+    "start": "node node_modules/prisma/build/index.js db push --accept-data-loss && node dist/server.js",
     "dev": "nodemon --watch src -e ts --exec ts-node src/server.ts",
     "build": "node node_modules/prisma/build/index.js generate && node node_modules/typescript/lib/tsc.js",
     "prisma:generate": "prisma generate",
