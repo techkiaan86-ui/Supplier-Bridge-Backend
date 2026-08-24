@@ -1,0 +1,928 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(uuid())
+  name          String
+  email         String         @unique
+  password      String
+  phone         String?
+  status              String         @default("active")
+  profileImage        String?
+  lastLogin           DateTime?
+  twoFactorSecret     String?
+  isTwoFactorEnabled  Boolean        @default(false)
+  passwordChangedAt   DateTime?
+  
+  departmentId        String?
+  department    Department?    @relation(fields: [departmentId], references: [id])
+  
+  roleId        String
+  role          Role           @relation(fields: [roleId], references: [id])
+  
+  sessions      Session[]
+  refreshTokens RefreshToken[]
+  activityLogs  ActivityLog[]
+  
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  @@map("user")
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  users       User[]
+  permissions RolePermission[]
+  
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  @@map("role")
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  roles       RolePermission[]
+  
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  @@map("permission")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("rolepermission")
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  users     User[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("department")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  expiresAt DateTime
+  
+  createdAt DateTime @default(now())
+  @@map("session")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  
+  createdAt DateTime @default(now())
+  @@map("refreshtoken")
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      String
+  details     String?  @db.Text
+  entityType  String?
+  entityId    String?
+  oldData     String?  @db.Text
+  newData     String?  @db.Text
+  ipAddress   String?
+  
+  createdAt   DateTime @default(now())
+  @@map("activitylog")
+}
+
+model IpWhitelist {
+  id          String   @id @default(uuid())
+  ipAddress   String   @unique
+  description String?
+  status      String   @default("active")
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@map("ipwhitelist")
+}
+
+model EmailConfig {
+  id                String   @id @default(uuid())
+  provider          String   @default("SMTP") // SMTP, SENDGRID, SES, MICROSOFT365
+  host              String?
+  port              Int?     @default(587)
+  username          String?
+  encryptedPassword String?  @db.Text
+  apiKey            String?  @db.Text
+  fromEmail         String   @default("noreply@supplybridge.io")
+  fromName          String   @default("SupplyBridge Enterprise PIM")
+  status            String   @default("active")
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  @@map("emailconfig")
+}
+
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String   @db.Text
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("systemsetting")
+}
+
+// ==========================================
+// PHASE 2: ENTERPRISE PIM PLATFORM
+// ==========================================
+
+// --- Supplier Management ---
+model Supplier {
+  id                String               @id @default(uuid())
+  name              String
+  company           String?
+  email             String?
+  phone             String?
+  website           String?
+  status            String               @default("active")
+  
+  connections       SupplierConnection[]
+  credentials       SupplierCredential[]
+  syncs             SupplierSync[]
+  logs              SupplierLog[]
+  schedules         SupplierSchedule[]
+  products          Product[]
+  supplierSources   SupplierSource[]
+  orders            OrderEntry[]
+  
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  deletedAt         DateTime?
+  @@map("supplier")
+}
+
+model SupplierConnection {
+  id                String    @id @default(uuid())
+  supplierId        String
+  supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  type              String    // API, FTP, SFTP, SOAP, CSV, XML
+  apiUrl            String?
+  fieldMapping      Json?     // Map supplier columns to standard schema fields
+  status            String    @default("disconnected")
+  lastSync          DateTime?
+  nextSync          DateTime?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("supplierconnection")
+
+}
+
+model SupplierCredential {
+  id                String    @id @default(uuid())
+  supplierId        String
+  supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  authType          String    // basic, bearer, apikey
+  username          String?
+  password          String?
+  apiKey            String?
+  secret            String?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("suppliercredential")
+}
+
+model SupplierSync {
+  id                String    @id @default(uuid())
+  supplierId        String
+  supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  status            String    // success, failed, in_progress
+  productCount      Int       @default(0)
+  inventoryStatus   String?
+  pricingStatus     String?
+  imageStatus       String?
+  
+  createdAt         DateTime  @default(now())
+  @@map("suppliersync")
+}
+
+model SupplierLog {
+  id                String    @id @default(uuid())
+  supplierId        String
+  supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  action            String
+  details           String?   @db.Text
+  status            String
+  
+  createdAt         DateTime  @default(now())
+  @@map("supplierlog")
+}
+
+model SupplierSchedule {
+  id                String    @id @default(uuid())
+  supplierId        String
+  supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  dataType          String    @default("products") // products, inventory, pricing, images, categories, variants, status, other
+  cronExpression    String
+  isActive          Boolean   @default(true)
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("supplierschedule")
+}
+
+model SupplierSource {
+  id                String    @id @default(uuid())
+  productId         String
+  product           Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplierId        String
+  supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  
+  supplierSku       String
+  cost              Float     // STRICTLY Supplier Cost (independent of selling price)
+  inventory         Int       @default(0)
+  uom               String?   // Unit of Measure / Packaging
+  minOrderQty       Int       @default(1)
+  isPreferred       Boolean   @default(false)
+  
+  warehouseAvailability String? @db.Text
+  alternateUom          String? @db.Text
+  substituteItems       String? @db.Text
+  isSpecialOrder        Boolean @default(false)
+  isDropshipped         Boolean @default(false)
+  webProductPage        String?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@unique([productId, supplierId])
+  @@map("suppliersource")
+}
+
+// --- Product Information Management ---
+model Product {
+  id                String    @id @default(uuid())
+  sku               String    @unique
+  upc               String?   @unique
+  barcode           String?   @unique
+  title             String
+  description       String?   @db.Text
+  shortDescription  String?
+  status            String    @default("draft") // draft, published, archived
+  slug              String?   @unique
+  seoTitle          String?
+  seoDescription    String?
+  
+  weight            Float?
+  dimensions        String?
+  
+  supplierId        String?
+  supplier          Supplier? @relation(fields: [supplierId], references: [id])
+  
+  categoryId        String?
+  category          Category? @relation(fields: [categoryId], references: [id])
+  
+  brandId           String?
+  brand             Brand?    @relation(fields: [brandId], references: [id])
+  
+  manufacturerId    String?
+  manufacturer      Manufacturer? @relation(fields: [manufacturerId], references: [id])
+  
+  variants          Variant[]
+  images            ProductImage[]
+  prices            ProductPrice[]
+  inventory         Inventory[]
+  mappings          ProductMapping[]
+  storeMappings     ProductStoreMapping[]
+  supplierSources   SupplierSource[]
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+  @@map("product")
+}
+
+model Category {
+  id                String    @id @default(uuid())
+  name              String
+  slug              String    @unique
+  parentId          String?
+  parent            Category? @relation("CategoryToCategory", fields: [parentId], references: [id])
+  children          Category[] @relation("CategoryToCategory")
+  seoTitle          String?
+  seoDescription    String?
+  status            String    @default("active")
+  
+  products          Product[]
+  mappings          CategoryMapping[]
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("category")
+}
+
+model Brand {
+  id                String    @id @default(uuid())
+  name              String    @unique
+  logo              String?
+  description       String?   @db.Text
+  website           String?
+  status            String    @default("active")
+  
+  products          Product[]
+  mappings          BrandMapping[]
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("brand")
+}
+
+model Manufacturer {
+  id                String    @id @default(uuid())
+  company           String    @unique
+  country           String?
+  contact           String?
+  status            String    @default("active")
+  
+  products          Product[]
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("manufacturer")
+}
+
+model Variant {
+  id                String    @id @default(uuid())
+  productId         String
+  product           Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku               String    @unique
+  color             String?
+  size              String?
+  material          String?
+  storage           String?
+  memory            String?
+  model             String?
+  dynamicOptions    String?   @db.Text // JSON string
+  
+  prices            ProductPrice[]
+  inventory         Inventory[]
+  mappings          VariantMapping[]
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("variant")
+}
+
+model Attribute {
+  id                String    @id @default(uuid())
+  name              String
+  group             String?
+  type              String    @default("text") // text, number, select
+  dynamicValues     String?   @db.Text // JSON string for values
+  
+  mappings          AttributeMapping[]
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("attribute")
+}
+
+model Media {
+  id                String    @id @default(uuid())
+  url               String    @db.LongText
+  type              String    // image, document, video
+  folder            String?
+  filename          String
+  size              Int?
+  
+  createdAt         DateTime  @default(now())
+  @@map("media")
+}
+
+model ProductImage {
+  id                String    @id @default(uuid())
+  productId         String
+  product           Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url               String    @db.LongText
+  isFeatured        Boolean   @default(false)
+  order             Int       @default(0)
+  
+  createdAt         DateTime  @default(now())
+  @@map("productimage")
+}
+
+model ProductPrice {
+  id                String    @id @default(uuid())
+  productId         String?
+  product           Product?  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId         String?
+  variant           Variant?  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  
+  price             Float
+  cost              Float?
+  currency          String    @default("USD")
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("productprice")
+}
+
+model Inventory {
+  id                String    @id @default(uuid())
+  productId         String?
+  product           Product?  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId         String?
+  variant           Variant?  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  
+  quantity          Int       @default(0)
+  status            String    @default("in_stock")
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("inventory")
+}
+
+// --- Store Management ---
+model Store {
+  id                String    @id @default(uuid())
+  name              String
+  type              String    // shopify, magento, woocommerce, shift4shop, custom
+  environment       String    @default("production") // production, staging, testing
+  storeKey          String?   @unique // anchorage_med, anchorage_unlimited, etc.
+  autoRoutingRule   String?   @default("ALL") // ALL, MEDICAL_ONLY, RETAIL_ONLY, CUSTOM
+  currency          String    @default("USD")
+  language          String    @default("en")
+  timezone          String    @default("UTC")
+  connectionStatus  String    @default("active")
+  syncStatus        String    @default("idle")
+  lastSync          DateTime?
+  
+  inventoryCron     String?   @default("*/15 * * * *")
+  pricingCron       String?   @default("0 * * * *")
+  imagesCron        String?   @default("0 0 * * *")
+  productsCron      String?   @default("0 2 * * *")
+  categoriesCron    String?   @default("0 3 * * *")
+  variantsCron      String?   @default("0 4 * * *")
+  statusCron        String?   @default("0 5 * * *")
+  
+  configurations    StoreConfiguration[]
+  credentials       StoreCredential[]
+  productMappings   ProductStoreMapping[]
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("store")
+}
+
+model StoreConfiguration {
+  id                String    @id @default(uuid())
+  storeId           String
+  store             Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  key               String
+  value             String    @db.Text
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("storeconfiguration")
+}
+
+model StoreCredential {
+  id                  String    @id @default(uuid())
+  storeId             String
+  store               Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  apiKey              String?
+  secret              String?
+  accessToken         String?
+  encryptedApiKey     String?   @db.Text
+  encryptedSecret     String?   @db.Text
+  encryptedAccessToken String?  @db.Text
+  storeUrl            String?
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  @@map("storecredential")
+}
+
+model ProductStoreMapping {
+  id                 String    @id @default(uuid())
+  productId          String
+  product            Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  storeId            String
+  store              Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  remoteStorefrontId String?
+  syncStatus         String    @default("synced")
+  lastPushedAt       DateTime?
+  
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([productId, storeId])
+  @@map("productstoremapping")
+}
+
+// --- Data Mapping & Import Engine ---
+model CategoryMapping {
+  id                String    @id @default(uuid())
+  categoryId        String
+  category          Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  supplierValue     String
+  storeValue        String?
+  manualOverride    Boolean   @default(false)
+  status            String    @default("mapped")
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("categorymapping")
+}
+
+model BrandMapping {
+  id                String    @id @default(uuid())
+  brandId           String
+  brand             Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  supplierValue     String
+  storeValue        String?
+  manualOverride    Boolean   @default(false)
+  status            String    @default("mapped")
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("brandmapping")
+}
+
+model VariantMapping {
+  id                String    @id @default(uuid())
+  variantId         String
+  variant           Variant   @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  supplierValue     String
+  storeValue        String?
+  manualOverride    Boolean   @default(false)
+  status            String    @default("mapped")
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("variantmapping")
+}
+
+model AttributeMapping {
+  id                String    @id @default(uuid())
+  attributeId       String
+  attribute         Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  supplierValue     String
+  storeValue        String?
+  manualOverride    Boolean   @default(false)
+  status            String    @default("mapped")
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("attributemapping")
+}
+
+model ProductMapping {
+  id                String    @id @default(uuid())
+  productId         String
+  product           Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplierValue     String
+  storeValue        String?
+  manualOverride    Boolean   @default(false)
+  status            String    @default("mapped")
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("productmapping")
+}
+
+model ImportJob {
+  id                String    @id @default(uuid())
+  source            String    // API, FTP, CSV, etc.
+  type              String    // Products, Categories, Brands, Variants
+  status            String    // pending, processing, completed, failed
+  recordsProcessed  Int       @default(0)
+  recordsFailed     Int       @default(0)
+  logs              String?   @db.Text
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("importjob")
+}
+
+
+// ==========================================
+// PHASE 3: PRODUCTION READY / SYNC / QUEUES
+// ==========================================
+
+model ValidationRule {
+  id                String    @id @default(uuid())
+  entity            String    // Product, Supplier, Category
+  field             String    // sku, images, price
+  ruleType          String    // required, unique, format
+  errorMessage      String
+  isActive          Boolean   @default(true)
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("validationrule")
+}
+
+model ValidationLog {
+  id                String    @id @default(uuid())
+  entityId          String    // ID of the invalid product/supplier
+  entityType        String    // Product, Supplier
+  issue             String    @db.Text
+  status            String    @default("open") // open, resolved
+  
+  createdAt         DateTime  @default(now())
+  resolvedAt        DateTime?
+  @@map("validationlog")
+}
+
+model JobLog {
+  id                String    @id @default(uuid())
+  jobId             String    // BullMQ job ID reference
+  queueName         String    // Import, Sync, Publish
+  status            String    // completed, failed, running
+  progress          Int       @default(0)
+  result            String?   @db.Text
+  error             String?   @db.Text
+  
+  createdAt         DateTime  @default(now())
+  completedAt       DateTime?
+  @@map("joblog")
+}
+
+model PublishingLog {
+  id                String    @id @default(uuid())
+  storeId           String
+  productId         String
+  status            String    // success, failed
+  details           String?   @db.Text
+  
+  createdAt         DateTime  @default(now())
+  @@map("publishinglog")
+}
+
+
+// ==========================================
+// PHASE 4: SIDEBAR CRUD (PRICING)
+// ==========================================
+
+model PricingRule {
+  id               String   @id @default(uuid())
+  name             String
+  type             String   // e.g., 'markup_percentage', 'fixed_margin', 'fixed_price'
+  value            Float
+  priority         Int      @default(100) // Lower number = higher priority
+  
+  targetSupplierId String?
+  targetCategoryId String?
+  targetBrandId    String?
+  
+  active           Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@map("pricingrule")
+}
+
+model PricingAudit {
+  id            String   @id @default(uuid())
+  name          String
+  sku           String
+  supplier      String
+  oldPrice      Float
+  newPrice      Float
+  wholesaleCost Float
+  status        String   @default("pending")
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@map("pricingaudit")
+}
+
+model IntegrationProtocol {
+  id            String   @id @default(uuid())
+  label         String
+  type          String   // e.g., api, ftp, sftp, csv, xml
+  emoji         String
+  color         String
+  description   String?  @db.Text
+  activeCount   Int      @default(0)
+  features      String   @db.Text // JSON string array
+  timeoutSec    Int      @default(30)
+  rateLimitHr   Int      @default(5000)
+  retries       Int      @default(3)
+  schedule      String   @default("Every 6 hours")
+  delimiter     String?
+  encoding      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@map("integrationprotocol")
+}
+
+model IntegrationEvent {
+  id            String   @id @default(uuid())
+  type          String
+  supplier      String
+  event         String   @db.Text
+  time          String
+  ok            Boolean  @default(true)
+  createdAt     DateTime @default(now())
+@@map("integrationevent")
+}
+
+// ==========================================
+// PHASE 5: NOTIFICATIONS
+// ==========================================
+
+enum NotificationType {
+  FAILED_SYNC
+  SUPPLIER_OFFLINE
+  API_ERROR
+  FTP_ERROR
+  INVENTORY_WARNING
+  NEW_PRODUCT
+  PRICE_CHANGE
+  VALIDATION_REQUIRED
+
+  PRODUCT_CREATED
+  PRODUCT_UPDATED
+  PRODUCT_DELETED
+  SUPPLIER_ADDED
+  SUPPLIER_UPDATED
+  SUPPLIER_ONLINE
+  INVENTORY_UPDATED
+  INVENTORY_MISSING
+  PRICE_MISSING
+  MISSING_IMAGES
+  DUPLICATE_SKU
+  DUPLICATE_UPC
+  VALIDATION_PASSED
+  VALIDATION_FAILED
+  IMPORT_STARTED
+  IMPORT_COMPLETED
+  IMPORT_FAILED
+  SYNC_STARTED
+  SYNC_COMPLETED
+  SFTP_ERROR
+  SOAP_ERROR
+  STORE_CONNECTED
+  STORE_DISCONNECTED
+  QUEUE_STARTED
+  QUEUE_PAUSED
+  QUEUE_RESUMED
+  QUEUE_CANCELLED
+  PUBLISHING_STARTED
+  PUBLISHING_COMPLETED
+  PUBLISHING_FAILED
+  USER_CREATED
+  ROLE_UPDATED
+  PERMISSION_UPDATED
+  SYSTEM_ERROR
+  DATABASE_ERROR
+  SERVER_RESTART
+
+  // Explicit Client Requirements
+  FAILED_IMPORT
+  SUPPLIER_CONNECTION_FAILURE
+  API_FAILURE
+  FTP_FAILURE
+  VALIDATION_ERROR
+  CRITICAL_SYSTEM_ERROR
+  SUCCESSFUL_SYNC
+  @@map("notificationtype")
+}
+
+enum Severity {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+  @@map("severity")
+}
+
+model Notification {
+  id          String           @id @default(uuid())
+  title       String
+  message     String           @db.Text
+  type        NotificationType
+  severity    Severity         @default(INFO)
+  status      String?          // Used if we need extra state
+  module      String?          // e.g., 'catalog', 'sync'
+  userId      String?          // Optional: for targeting specific users
+  role        String?          // Optional: for targeting specific roles
+  referenceId String?          // Related entity ID
+  actionUrl   String?          // URL to redirect on click
+  metadata    String?          @db.Text // JSON string for extra data
+  isRead      Boolean          @default(false)
+  
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  @@map("notification")
+}
+
+model NotificationPreference {
+  id           String   @id @default(uuid())
+  userId       String?
+  role         String?
+  eventType    String   // e.g., FAILED_IMPORT, FAILED_SYNC, SUPPLIER_CONNECTION_FAILURE, etc.
+  emailEnabled Boolean  @default(true)
+  inAppEnabled Boolean  @default(true)
+  slackEnabled Boolean  @default(false)
+  teamsEnabled Boolean  @default(false)
+  smsEnabled   Boolean  @default(false)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, role, eventType])
+  @@map("notificationpreference")
+}
+
+model ApiKey {
+  id              String    @id @default(uuid())
+  name            String
+  keyPrefix       String
+  encryptedSecret String    @db.Text
+  scopes          String    @default("read,write") // Comma separated or JSON string
+  status          String    @default("active")     // active, revoked, expired
+  expiresAt       DateTime?
+  lastUsedAt      DateTime?
+  createdBy       String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  @@map("apikey")
+}
+
+model OrderEntry {
+  id                String    @id @default(uuid())
+  supplierId        String
+  supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  poNumber          String    @unique
+  customerName      String?
+  itemsCount        Int       @default(1)
+  totalAmount       Float     @default(0.0)
+  status            String    @default("submitted") // submitted, processing, confirmed, failed
+  
+  orderStatuses     OrderStatus[]
+  proofOfDeliveries ProofOfDelivery[]
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@map("orderentry")
+}
+
+model OrderStatus {
+  id                String      @id @default(uuid())
+  orderId           String
+  order             OrderEntry  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status            String      @default("in_transit") // in_transit, shipped, delivered, cancelled
+  carrier           String?     @default("Cardinal Freight")
+  trackingNumber    String?
+  estimatedDelivery DateTime?
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  @@map("orderstatus")
+}
+
+model ProofOfDelivery {
+  id                String      @id @default(uuid())
+  orderId           String
+  order             OrderEntry  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  trackingNumber    String
+  carrier           String      @default("FedEx / Cardinal Express")
+  deliveredAt       DateTime    @default(now())
+  recipientName     String?     @default("Pharmacy Receiver")
+  signatureUrl      String?
+  status            String      @default("delivered")
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  @@map("proofofdelivery")
+}
+
