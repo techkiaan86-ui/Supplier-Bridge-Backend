@@ -9,6 +9,10 @@ import { SchedulerService } from './services/scheduler.service';
 const PORT = process.env.PORT || 5000;
 
 async function startServer() {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server is running on port ${PORT}`);
+  });
+
   try {
     // Check DB connection
     await prisma.$connect();
@@ -17,13 +21,9 @@ async function startServer() {
     // Initialize Background Workers and Scheduler
     initWorkers();
     await SchedulerService.startScheduler();
-
-    app.listen(PORT, () => {
-      console.log(`🚀 Server is running on port ${PORT}`);
-    });
-  } catch (error) {
-    console.error('❌ Failed to start the server:', error);
-    process.exit(1);
+  } catch (error: any) {
+    console.warn('⚠️  Database Connection Warning:', error.message || error);
+    console.warn('💡 Please configure DATABASE_URL in Railway Dashboard variables to point to your live MySQL database.');
   }
 }
 
