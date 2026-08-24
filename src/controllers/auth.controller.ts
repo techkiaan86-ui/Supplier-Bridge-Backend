@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import bcrypt from 'bcrypt';
+import { hashPassword, comparePassword } from '../utils/hash.util';
 import prisma from '../utils/prisma';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
 import { AppError } from '../utils/AppError';
@@ -15,7 +15,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       return next(new AppError('Email already in use', 400));
     }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = await hashPassword(password);
 
     const user = await prisma.user.create({
       data: {
@@ -87,7 +87,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       if (!roleObj) {
         roleObj = await prisma.role.create({ data: { name: preset.roleName } });
       }
-      const hashed = await bcrypt.hash(password || 'admin123', 12);
+      const hashed = await hashPassword(password || 'admin123');
       await prisma.user.create({
         data: {
           name: preset.name,
@@ -116,9 +116,9 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     }
 
     // Verify password, or sync demo password if admin123
-    let isPasswordCorrect = await bcrypt.compare(password, user.password);
+    let isPasswordCorrect = await comparePassword(password, user.password);
     if (!isPasswordCorrect && DEMO_PRESETS[email] && (password === 'admin123' || password === 'admin')) {
-      const hashed = await bcrypt.hash('admin123', 12);
+      const hashed = await hashPassword('admin123');
       await prisma.user.update({
         where: { id: user.id },
         data: { password: hashed },

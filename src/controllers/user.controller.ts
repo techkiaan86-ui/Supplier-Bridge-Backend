@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import bcrypt from 'bcrypt';
+import { hashPassword } from '../utils/hash.util';
 import prisma from '../utils/prisma';
 import { AppError } from '../utils/AppError';
 
@@ -61,7 +61,7 @@ export const createUser = async (req: Request, res: Response, next: NextFunction
       return next(new AppError('Email already in use', 400));
     }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = await hashPassword(password);
 
     const user = await prisma.user.create({
       data: {
