@@ -693,13 +693,17 @@ model PublishingLog {
 model PricingRule {
   id               String   @id @default(uuid())
   name             String
-  type             String   // e.g., 'markup_percentage', 'fixed_margin', 'fixed_price'
-  value            Float
+  type             String   @default("markup_percentage") // e.g., 'markup_percentage', 'fixed_margin', 'fixed_price'
+  value            Float    @default(0)
   priority         Int      @default(100) // Lower number = higher priority
   
   targetSupplierId String?
   targetCategoryId String?
   targetBrandId    String?
+
+  formula          String?
+  applies          String?
+  products         Int      @default(0)
   
   active           Boolean  @default(true)
   
