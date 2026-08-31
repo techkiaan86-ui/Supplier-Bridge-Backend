@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import roleRoutes from './routes/role.routes';
 import permissionRoutes from './routes/permission.routes';
+import shift4shopOAuthRoutes from './routes/shift4shopOAuth.routes';
 import { globalErrorHandler, notFoundHandler } from './middleware/errorHandler';
 
 const app: Application = express();
@@ -36,6 +37,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/permissions', permissionRoutes);
+app.use('/api/v1/store', shift4shopOAuthRoutes);
 
 // Phase 2 Routes
 import supplierRoutes from './routes/supplier.routes';

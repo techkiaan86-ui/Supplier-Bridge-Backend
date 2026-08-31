@@ -353,7 +353,7 @@ export const updateProduct = async (req: Request, res: Response) => {
           }
         });
       }
-      
+
       const existingImage = await prisma.productImage.findFirst({ where: { productId: id } });
       if (existingImage) {
         await prisma.productImage.update({
@@ -450,9 +450,9 @@ export const updateProduct = async (req: Request, res: Response) => {
 export const deleteProduct = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    
+
     // Get product details before deleting for the notification
-    const product = await prisma.product.findUnique({ 
+    const product = await prisma.product.findUnique({
       where: { id },
       include: { images: true }
     });
@@ -470,7 +470,7 @@ export const deleteProduct = async (req: Request, res: Response) => {
     for (const url of Array.from(mediaUrls)) {
       const count = await prisma.productImage.count({ where: { url } });
       if (count === 0) {
-        await prisma.media.deleteMany({ where: { url } }).catch(() => {});
+        await prisma.media.deleteMany({ where: { url } }).catch(() => { });
       }
     }
 
